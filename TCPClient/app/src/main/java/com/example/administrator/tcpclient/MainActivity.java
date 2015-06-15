@@ -19,6 +19,7 @@ import android.widget.Button;
 import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.SimpleAdapter;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.BufferedInputStream;
@@ -36,14 +37,13 @@ import java.util.HashMap;
 import java.util.List;
 
 
-public class MainActivity extends ActionBarActivity implements Runnable,ConfigureFragment.OnFragmentInteractionListener{
+public class MainActivity extends ActionBarActivity implements ConfigureFragment.OnFragmentInteractionListener{
 
     private final int REQ_UPLOAD = 1;
 
     private final int MSG_TYPE_SEND = 0;
     private final int MSG_TYPE_RECEIVE = 1;
     private final int MSG_TYPE_CONNECT = 2;
-    private final int HOST_PORT = 8888;
 
     private final String KEY_MSG_TYPE = "type";
     private final String KEY_MSG_CONTENT = "content";
@@ -53,14 +53,15 @@ public class MainActivity extends ActionBarActivity implements Runnable,Configur
 
     //控件对象定义
     private ListView lvSongs;
-    private Button btnSendFile;
     private ProgressBar pbSendFile;
+    private TextView tvPause,tvCurrentMusic;
 
     ConfigureFragment fragment;
     DataOutputStream dos;
-    ServerSocket mServerSocket = null;
     Socket socket = null;
     ReadThread thread = null;
+
+    private boolean isPlaying;
 
     private List<HashMap<String,String>> maplist;
     private String dest_ip,dest_port;
@@ -72,11 +73,9 @@ public class MainActivity extends ActionBarActivity implements Runnable,Configur
 
         initView();
 
-        //Thread myThread = new Thread(MainActivity.this);
-        //myThread.start();
-
         showConfirmPage();
 
+        isPlaying = false;
     }
 
     @Override
@@ -100,6 +99,9 @@ public class MainActivity extends ActionBarActivity implements Runnable,Configur
                     Toast.makeText(this,"No file manager available.",Toast.LENGTH_SHORT).show();
                 }
                 break;
+            case R.id.action_refresh:
+                new SendCmdTask().execute("ls");
+                break;
             default:
                 break;
         }
@@ -108,92 +110,36 @@ public class MainActivity extends ActionBarActivity implements Runnable,Configur
 
     private void initView(){
         lvSongs = (ListView)findViewById(R.id.lvSongs);
-        btnSendFile = (Button)findViewById(R.id.btnSendFile);
+        tvCurrentMusic = (TextView)findViewById(R.id.tvCurrentMusic);
+        tvPause = (TextView)findViewById(R.id.tvPause);
         pbSendFile = (ProgressBar)findViewById(R.id.pbSendFile);
         lvSongs.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
                 String entry = maplist.get(i).get("title");
                 if(entry.charAt(1)=='F'){
+                    isPlaying = true;
+                    tvPause.setText("PAUSE");
+                    tvCurrentMusic.setText(entry.substring(4));
                     new SendCmdTask().execute("play "+entry.substring(4));
                 }
             }
         });
-        btnSendFile.setOnClickListener(new View.OnClickListener() {
+        tvPause.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                File inFile = new File(Environment.getExternalStorageDirectory().getAbsolutePath(),"zom.wav");
-                new SendFileTask().execute(inFile.getAbsolutePath(),inFile.getName());
+                if(isPlaying){
+                    new SendCmdTask().execute("pau");
+                    isPlaying = false;
+                    tvPause.setText("PLAY");
+                }else{
+                    new SendCmdTask().execute("res");
+                    isPlaying = true;
+                    tvPause.setText("PAUSE");
+                }
             }
         });
         pbSendFile.setMax(100);
-    }
-
-    @Override
-    public void run() {
-        try{
-            //创建ServerSocket对象，并设置端口为8888
-            mServerSocket = new ServerSocket(HOST_PORT);
-
-            //不断循环接收数据信息
-            while (true) {
-                StringBuilder sb = new StringBuilder();
-                //打印开始服务阻塞提示
-                Log.i("yj","开始数据接收阻塞等待.....");
-
-
-                //ServerSocket开启等待接收数据的阻塞，并创建接收对象Socket
-                Socket mSocket = mServerSocket.accept();
-
-                //打印接收到数据信息的提示
-                Log.i("yj","接收到TCP客户端传递的信息。。。。");
-
-                //创建InputStream对象对Socket接收的数据进行获取
-                InputStream mInputStream = mSocket.getInputStream();
-
-                //创建数据输入流，并获取从Socket中提取的数据流的数据
-                DataInputStream mDataInputStream = new DataInputStream(new BufferedInputStream(mInputStream));
-
-                //定义字节数组
-                byte[] bufferff = new byte[1024 * 4];
-
-                int temp = 0;
-
-                //读取获取过来的数据对象InputStream的数据
-                while ((temp = mDataInputStream.read(bufferff)) != -1) {
-                    sb.append(new String(bufferff,0,temp));
-
-                }
-                //关闭数据流
-                mInputStream.close();
-                mDataInputStream.close();
-                //buffer.close();
-
-                Log.i("yj",sb.toString());
-
-                Message msg = new Message();
-                Bundle bundle = msg.getData();
-                bundle.putInt(KEY_MSG_TYPE,MSG_TYPE_RECEIVE);
-                bundle.putString(KEY_MSG_CONTENT,sb.toString());
-                handler.sendMessage(msg);
-
-            }
-        }catch (IOException e) {
-            e.printStackTrace();
-        }finally{
-            try{
-                if (mServerSocket != null){
-                    mServerSocket.close();
-                }
-            }catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    private void sendFile(String path){
-        File inFile = new File(path);
-        long length;
     }
 
     class SendCmdTask extends AsyncTask<String,Void,Void>{
@@ -237,12 +183,6 @@ public class MainActivity extends ActionBarActivity implements Runnable,Configur
         Message msg = new Message();
         Bundle bundle = msg.getData();
 
-        /*@Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            new SendCmdTask().execute("file 0 yo.wav");
-        }*/
-
         @Override
         protected void onProgressUpdate(Integer... values) {
             super.onProgressUpdate(values);
@@ -259,18 +199,18 @@ public class MainActivity extends ActionBarActivity implements Runnable,Configur
                 InputStream is = new FileInputStream(strings[0]);
                 size = is.available();
                 size_sent = 0;
-                buffer = new byte[1024];
+                buffer = new byte[1024*2];
 
                 head = (REQUEST_HEAD+"file "+size+"/"+strings[1]+REQUEST_END).getBytes();
                 dos.write(head,0,head.length);
                 dos.flush();
 
                 while((tmp=is.read(buffer))!=-1){
-                    dos.write(buffer,0,tmp);
+                    dos.write(buffer, 0, tmp);
                     size_sent += tmp;
                     onProgressUpdate(size_sent);
+                    Thread.sleep(250);
                     dos.flush();
-                    Thread.sleep(100);
                 }
 
                 is.close();
