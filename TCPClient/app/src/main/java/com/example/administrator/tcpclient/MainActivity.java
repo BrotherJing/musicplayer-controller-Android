@@ -17,6 +17,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.ListView;
+import android.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.SimpleAdapter;
 import android.widget.TextView;
@@ -63,6 +64,7 @@ public class MainActivity extends ActionBarActivity implements ConfigureFragment
 
     private boolean isPlaying;
 
+    private SimpleAdapter adapter;
     private List<HashMap<String,String>> maplist;
     private String dest_ip,dest_port;
 
@@ -123,6 +125,30 @@ public class MainActivity extends ActionBarActivity implements ConfigureFragment
                     tvCurrentMusic.setText(entry.substring(4));
                     new SendCmdTask().execute("play "+entry.substring(4));
                 }
+            }
+        });
+        lvSongs.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(AdapterView<?> adapterView, View view, int i, long l) {
+                final int ii = i;
+                PopupMenu menu = new PopupMenu(MainActivity.this,view);
+                menu.getMenuInflater().inflate(R.menu.menu_popup, menu.getMenu());
+                menu.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
+                    @Override
+                    public boolean onMenuItemClick(MenuItem menuItem) {
+                        switch(menuItem.getItemId()){
+                            case R.id.action_remove:
+                                String entry = maplist.get(ii).get("title");
+                                new SendCmdTask().execute("rm "+entry.substring(4));
+                                break;
+                            default:
+                                break;
+                        }
+                        return true;
+                    }
+                });
+                menu.show();
+                return true;
             }
         });
         tvPause.setOnClickListener(new View.OnClickListener() {
@@ -199,7 +225,7 @@ public class MainActivity extends ActionBarActivity implements ConfigureFragment
                 InputStream is = new FileInputStream(strings[0]);
                 size = is.available();
                 size_sent = 0;
-                buffer = new byte[1024*2];
+                buffer = new byte[1024*4];
 
                 head = (REQUEST_HEAD+"file "+size+"/"+strings[1]+REQUEST_END).getBytes();
                 dos.write(head,0,head.length);
@@ -209,7 +235,7 @@ public class MainActivity extends ActionBarActivity implements ConfigureFragment
                     dos.write(buffer, 0, tmp);
                     size_sent += tmp;
                     onProgressUpdate(size_sent);
-                    Thread.sleep(250);
+                    //Thread.sleep(250);
                     dos.flush();
                 }
 
@@ -267,7 +293,7 @@ public class MainActivity extends ActionBarActivity implements ConfigureFragment
             map.put("title",s);
             maplist.add(map);
         }
-        SimpleAdapter adapter = new SimpleAdapter(this,maplist,R.layout.list_cell,new String[]{"title"},new int[]{R.id.tvTitle});
+        adapter = new SimpleAdapter(this, maplist, R.layout.list_cell, new String[]{"title"}, new int[]{R.id.tvTitle});
         lvSongs.setAdapter(adapter);
     }
 
@@ -315,6 +341,7 @@ public class MainActivity extends ActionBarActivity implements ConfigureFragment
                         bundle.putInt(KEY_MSG_TYPE,MSG_TYPE_RECEIVE);
                         bundle.putString(KEY_MSG_CONTENT,s);
                         handler.sendMessage(msg);
+                        buffer = new byte[1024];
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
