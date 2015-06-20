@@ -19,6 +19,7 @@ import android.widget.Button;
 import android.widget.ListView;
 import android.widget.PopupMenu;
 import android.widget.ProgressBar;
+import android.widget.SeekBar;
 import android.widget.SimpleAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -55,6 +56,7 @@ public class MainActivity extends ActionBarActivity implements ConfigureFragment
     //控件对象定义
     private ListView lvSongs;
     private ProgressBar pbSendFile;
+    private SeekBar sbVolume;
     private TextView tvPause,tvCurrentMusic;
 
     ConfigureFragment fragment;
@@ -111,10 +113,12 @@ public class MainActivity extends ActionBarActivity implements ConfigureFragment
     }
 
     private void initView(){
+
         lvSongs = (ListView)findViewById(R.id.lvSongs);
         tvCurrentMusic = (TextView)findViewById(R.id.tvCurrentMusic);
         tvPause = (TextView)findViewById(R.id.tvPause);
         pbSendFile = (ProgressBar)findViewById(R.id.pbSendFile);
+        sbVolume = (SeekBar)findViewById(R.id.sbVolume);
         lvSongs.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
@@ -131,15 +135,15 @@ public class MainActivity extends ActionBarActivity implements ConfigureFragment
             @Override
             public boolean onItemLongClick(AdapterView<?> adapterView, View view, int i, long l) {
                 final int ii = i;
-                PopupMenu menu = new PopupMenu(MainActivity.this,view);
+                PopupMenu menu = new PopupMenu(MainActivity.this, view);
                 menu.getMenuInflater().inflate(R.menu.menu_popup, menu.getMenu());
                 menu.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
                     @Override
                     public boolean onMenuItemClick(MenuItem menuItem) {
-                        switch(menuItem.getItemId()){
+                        switch (menuItem.getItemId()) {
                             case R.id.action_remove:
                                 String entry = maplist.get(ii).get("title");
-                                new SendCmdTask().execute("rm "+entry.substring(4));
+                                new SendCmdTask().execute("rm " + entry.substring(4));
                                 break;
                             default:
                                 break;
@@ -154,18 +158,33 @@ public class MainActivity extends ActionBarActivity implements ConfigureFragment
         tvPause.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if(isPlaying){
+                if (isPlaying) {
                     new SendCmdTask().execute("pau");
                     isPlaying = false;
                     tvPause.setText("PLAY");
-                }else{
+                } else {
                     new SendCmdTask().execute("res");
                     isPlaying = true;
                     tvPause.setText("PAUSE");
                 }
             }
         });
-        pbSendFile.setMax(100);
+        sbVolume.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                new SendCmdTask().execute("vol "+sbVolume.getProgress());
+            }
+        });
     }
 
     class SendCmdTask extends AsyncTask<String,Void,Void>{
